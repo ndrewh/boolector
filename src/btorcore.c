@@ -950,8 +950,10 @@ btor_delete (Btor *btor)
     btor_node_release (btor, BTOR_PEEK_STACK (btor->functions_with_model, i));
   BTOR_RELEASE_STACK (btor->functions_with_model);
 
-  for (i = 0; i < BTOR_COUNT_STACK (btor->outputs); i++)
+  for (i = 0; i < BTOR_COUNT_STACK (btor->outputs); i++) {
+    btor_node_dec_ext_ref_counter(btor, BTOR_PEEK_STACK(btor->outputs, i));
     btor_node_release (btor, BTOR_PEEK_STACK (btor->outputs, i));
+  }
   BTOR_RELEASE_STACK (btor->outputs);
 
   BTOR_INIT_STACK (mm, stack);

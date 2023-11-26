@@ -249,7 +249,26 @@ boolector_add_output (Btor *btor, BoolectorNode *node)
 #ifndef NDEBUG
   BTOR_CHKCLONE_NORES (add_output, BTOR_CLONED_EXP (exp));
 #endif
+  btor_node_inc_ext_ref_counter(btor, exp);
 }
+
+BoolectorNode*
+boolector_get_output_term(Btor *btor, int i) {
+  BTOR_ABORT_ARG_NULL(btor);
+
+  if ((size_t)i >= BTOR_COUNT_STACK(btor->outputs)) {
+    return NULL;
+  }
+  BtorNode *res = BTOR_PEEK_STACK(btor->outputs, i);
+  return BTOR_EXPORT_BOOLECTOR_NODE(res);
+}
+
+int
+boolector_get_num_outputs(Btor *btor) {
+  BTOR_ABORT_ARG_NULL(btor);
+  return BTOR_COUNT_STACK(btor->outputs);
+}
+
 
 /*------------------------------------------------------------------------*/
 
@@ -1258,6 +1277,34 @@ boolector_constd (Btor *btor, BoolectorSort sort, const char *str)
   BTOR_CHKCLONE_RES_PTR (res, constd, sort, str);
 #endif
   return BTOR_EXPORT_BOOLECTOR_NODE (res);
+}
+
+BoolectorNode *
+boolector_mk_bv_value_uint64(Btor *btor,
+                            BoolectorSort sort,
+                            uint64_t value)
+{
+  uint32_t w;
+  BtorNode *res;
+  BtorBitVector *bv;
+  BtorSortId s;
+  
+  BTOR_ABORT_ARG_NULL(btor);
+
+  s = BTOR_IMPORT_BOOLECTOR_SORT (sort);
+  BTOR_ABORT (!btor_sort_is_valid (btor, s), "'sort' is not a valid sort");
+  BTOR_ABORT (!btor_sort_is_bv (btor, s),
+              "'sort' is not a bit vector sort");
+  w = btor_sort_bv_get_width (btor, s);
+
+  bv = btor_bv_uint64_to_bv(btor->mm, value, w);
+  res = btor_exp_bv_const(btor, bv);
+  btor_bv_free(btor->mm, bv);
+
+  btor_node_inc_ext_ref_counter (btor, res);
+  BTOR_TRAPI_RETURN_NODE (res);
+
+  return BTOR_EXPORT_BOOLECTOR_NODE(res);
 }
 
 BoolectorNode *
@@ -3779,6 +3826,27 @@ boolector_get_fun_arity (Btor *btor, BoolectorNode *node)
 
 /*------------------------------------------------------------------------*/
 
+bool boolector_substitute_ok(BoolectorNode *term) {
+  BTOR_ABORT_ARG_NULL(term);
+
+  BtorNode *btor_term = BTOR_IMPORT_BOOLECTOR_NODE(term);
+  return !btor_node_is_inverted(btor_term)
+         && (btor_node_is_bv_var(btor_term) || btor_node_is_uf(btor_term));
+}
+
+void boolector_set_is_array(BoolectorNode *term) {
+  BTOR_ABORT_ARG_NULL(term);
+
+  BtorNode *btor_term = BTOR_IMPORT_BOOLECTOR_NODE(term);
+  Btor *btor = boolector_get_btor(term);
+
+  if (!btor_node_is_fun(btor_term)) {
+     boolector_dump_btor_node(boolector_get_btor(term), stderr, term);
+  }
+  BTOR_ABORT_IS_NOT_FUN(btor_term);
+  btor_term->is_array = true;
+}
+
 bool
 boolector_is_const (Btor *btor, BoolectorNode *node)
 {
@@ -4684,6 +4752,18 @@ boolector_bitvec_sort_get_width (Btor *btor, BoolectorSort sort)
 /*------------------------------------------------------------------------*/
 
 /* Note: no need to trace parse function calls!! */
+
+void boolector_dump_formula_and_term(Btor *btor, BoolectorNode *term, BoolectorNode **output_terms, int num_output_terms, FILE *file) {
+    BTOR_ABORT(!btor_dumpbtor_can_be_dumped(btor), "Cannot dump UF terms");
+    BtorNode *node =  btor_simplify_exp(btor, BTOR_IMPORT_BOOLECTOR_NODE(term));
+
+    BtorNode **output_list = malloc(sizeof(BtorNode*) * num_output_terms);
+    for (int i=0; i<num_output_terms; i++) {
+        output_list[i] = BTOR_IMPORT_BOOLECTOR_NODE(output_terms[i]);
+    }
+    btor_dumpbtor_dump_with_extra_node(btor, node, output_list, num_output_terms, file);
+    free(output_list);
+}
 
 int32_t
 boolector_parse (Btor *btor,

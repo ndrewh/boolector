@@ -40,5 +40,6 @@ void btor_dumpbtor_dump (Btor *, FILE *, uint32_t);
 /* FIXME: right now we cannot dump UF in BTOR as the format does not support UF
  *        yet */
 bool btor_dumpbtor_can_be_dumped (Btor *);
+void btor_dumpbtor_dump_with_extra_node(Btor *btor, BtorNode *extra, BtorNode **output, int num_output, FILE *file);
 
 #endif

@@ -102,6 +102,9 @@ perr_btor (BtorBTORParser *parser, const char *fmt, ...)
         parser->mem, parser->infile_name, parser->lineno, 0, fmt, ap, bytes);
     va_end (ap);
   }
+  if (parser->error) {
+    fprintf(stderr, "%s", parser->error);
+  }
 
   return parser->error;
 }
@@ -469,6 +472,9 @@ parse_array_exp (BtorBTORParser *parser, uint32_t width)
   res = parse_exp (parser, width, true, false, 0);
   if (!res) return 0;
 
+  if (boolector_is_fun(parser->btor, res) && !(boolector_is_array(parser->btor, res))) {
+    boolector_set_is_array(res);
+  }
   if (boolector_is_array (parser->btor, res)) return res;
 
   (void) perr_btor (parser, "expected array expression");
@@ -740,6 +746,19 @@ parse_root (BtorBTORParser *parser, uint32_t width)
     boolector_release (parser->btor, tmp);
   }
   boolector_assert (parser->btor, res);
+  return res;
+}
+
+void boolector_add_output(Btor *btor, const BoolectorNode *term);
+
+static BoolectorNode *
+parse_output(BtorBTORParser *parser, uint32_t width)
+{
+  BoolectorNode *res;
+
+  if (parse_space(parser)) return 0;
+  if (!(res = parse_exp(parser, width, true, true, 0))) return 0;
+  boolector_add_output(parser->btor, res);
   return res;
 }
 
@@ -1774,6 +1793,7 @@ new_btor_parser (Btor *btor)
   new_parser (res, parse_redxor, "redxor");
   new_parser (res, parse_rol, "rol");
   new_parser (res, parse_root, "root"); /* only in parser */
+  new_parser(res, parse_output, "output"); /* only in parser */
   new_parser (res, parse_ror, "ror");
   new_parser (res, parse_saddo, "saddo");
   new_parser (res, parse_sdivo, "sdivo");

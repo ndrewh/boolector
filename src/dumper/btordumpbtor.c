@@ -750,14 +750,24 @@ btor_dumpbtor_dump_bdc (BtorDumpContext *bdc, FILE *file)
 
   for (i = 0; i < BTOR_COUNT_STACK (bdc->outputs); i++)
   {
-    BtorNode *node = BTOR_PEEK_STACK (bdc->outputs, i);
-    bdcrec (bdc, node, file);
+    BtorNode *node = BTOR_PEEK_STACK(bdc->outputs, i);
+    while (btor_node_is_proxy(node)) { // the parser doesn't support proxies (lol)
+      node = node->simplified;
+    }
+    bdcrec(bdc, node, file);
     id = ++bdc->maxid;
-    fprintf (file,
-             "%d output %u %d\n",
-             id,
-             btor_node_bv_get_width (bdc->btor, node),
-             bdcid (bdc, node));
+    if (btor_sort_is_fun(bdc->btor, btor_node_get_sort_id(node))) {
+      len = btor_sort_bv_get_width(
+          bdc->btor,
+          btor_sort_fun_get_codomain(bdc->btor, btor_node_get_sort_id(node)));
+    } else {
+      len = btor_node_bv_get_width(bdc->btor, node);
+    }
+    fprintf(file,
+            "%d output %u %d\n",
+            id,
+            len,
+            bdcid(bdc, node));
   }
 
   for (i = 0; i < BTOR_COUNT_STACK (bdc->bads); i++)
@@ -881,6 +891,47 @@ btor_dumpbtor_dump (Btor *btor, FILE *file, uint32_t version)
 
   btor_dumpbtor_dump_bdc (bdc, file);
   btor_dumpbtor_delete_dump_context (bdc);
+}
+
+void
+btor_dumpbtor_dump_with_extra_node(Btor *btor, BtorNode *extra, BtorNode **output, int num_output, FILE *file) {
+  BtorNode *tmp;
+  BtorDumpContext *bdc;
+  BtorPtrHashTableIterator it;
+
+  bdc          = btor_dumpbtor_new_dump_context(btor);
+  bdc->version = 1;  // NOTE: version 2 not yet supported
+
+  if (btor->inconsistent)
+  {
+    tmp = btor_exp_false(btor);
+    btor_dumpbtor_add_root_to_dump_context(bdc, tmp);
+    btor_node_release(btor, tmp);
+  }
+  else if (btor->unsynthesized_constraints->count == 0
+           && btor->synthesized_constraints->count == 0)
+  {
+    tmp = btor_exp_true(btor);
+    btor_dumpbtor_add_root_to_dump_context(bdc, tmp);
+    btor_node_release(btor, tmp);
+  }
+  else
+  {
+    btor_iter_hashptr_init(&it, btor->unsynthesized_constraints);
+    btor_iter_hashptr_queue(&it, btor->synthesized_constraints);
+    while (btor_iter_hashptr_has_next(&it))
+      btor_dumpbtor_add_root_to_dump_context(bdc, btor_iter_hashptr_next(&it));
+  }
+
+  // Add the extra node
+  btor_dumpbtor_add_root_to_dump_context(bdc, extra);
+
+  for (int i=0; i<num_output; i++) {
+    btor_dumpbtor_add_output_to_dump_context(bdc, output[i]);
+  }
+
+  btor_dumpbtor_dump_bdc(bdc, file);
+  btor_dumpbtor_delete_dump_context(bdc);
 }
 
 bool

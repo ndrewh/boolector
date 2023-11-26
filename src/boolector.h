@@ -739,6 +739,11 @@ BoolectorNode *boolector_consth (Btor *btor,
                                  BoolectorSort sort,
                                  const char *str);
 
+BoolectorNode *
+boolector_mk_bv_value_uint64(Btor *btor,
+                            BoolectorSort sort,
+                            uint64_t value);
+
 /*!
   Create bit-vector constant zero of sort ``sort``.
 
@@ -2454,6 +2459,13 @@ int32_t boolector_parse_smt2 (Btor *btor,
   :param node: The expression which should be dumped.
 */
 void boolector_dump_btor_node (Btor *btor, FILE *file, BoolectorNode *node);
+
+
+bool boolector_substitute_ok(BoolectorNode *term);
+void boolector_set_is_array(BoolectorNode *term);
+BoolectorNode* boolector_get_output_term(Btor *boolector, int idx);
+int boolector_get_num_outputs(Btor *boolector);
+void boolector_dump_formula_and_term(Btor *boolector, BoolectorNode *term, BoolectorNode **output_terms, int num_output_terms, FILE *file);
 
 /*!
   Dump formula to file in BTOR_ format.
